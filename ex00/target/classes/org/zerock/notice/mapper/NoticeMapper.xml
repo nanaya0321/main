@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  <mapper namespace="org.zerock.notice.mapper.NoticeMapper">
+  <!-- 1-1. getTotalRow -->
+  <select id="getTotalRow" resultType="Long">
+  select count(*) from notice
+  </select>
+  <!-- 1-2. list -->
+  <select id="list" resultType="org.zerock.notice.vo.NoticeVO">
+	select
+		no, title, startDate, endDate, writeDate
+	from
+	(
+	  	select
+	  		rownum rnum, no, title, startDate, endDate, writeDate
+	  	from
+		  	(
+		  	select 
+		  		no, title, startDate, endDate, writeDate 
+		  	from 
+		  		notice
+		  	<include refid="period"></include>
+		  	order by no desc
+		  	)
+	)  	
+	where rnum between #{startRow} and #{endRow}
+  </select>
+  
+  <!-- 공지기간에 따른 처리 -->
+  <sql id="period">
+  	<trim prefix="where" prefixOverrides="and">
+  		<if test="period.equals('pre')">
+  			and trunc(sysdate) between trunc(startDate) and trunc(endDate)
+  		</if>
+  		<if test="period.equals('old')">
+  			<![CDATA[trunc(sysdate) > trunc(endDate)]]>
+  		</if>
+  		<if test="period.equals('res')">
+			<!-- <![CDATA[trunc(sysdate) < trunc(startDate)]]> 또는 &lt;(< 라는 의미)를 사용해야함 -->
+  			and trunc(sysdate) &lt; trunc(startDate)
+  		</if>
+  	</trim>
+  </sql>
+  <!-- 2. view -->
+  <select id="view" resultType="org.zerock.notice.vo.NoticeVO">
+  select no, title, content, startDate, endDate, writeDate, updateDate
+  from notice where no = #{no}
+  </select>
+  <!-- 3. write -->
+  <insert id="write">
+  	<selectKey keyProperty="no" resultType="Long" order="BEFORE">
+  	select notice_seq.nextval from dual
+  	</selectKey>
+  	insert into notice(no, title, content, startDate, endDate)
+  	values(#{no}, #{title}, #{content}, #{startDate}, #{endDate})
+  </insert>
+  <!-- 4. update -->
+  <update id="update">
+  	update notice set
+  		title=#{title}, content=#{content}, startDate=#{startDate}, endDate=#{endDate}
+  	where
+  		no = #{no}
+  </update>
+  <!-- 5. delete -->
+  <delete id="delete">
+  	delete from notice
+  	where no = #{no}
+  </delete>
+ 
+  </mapper>

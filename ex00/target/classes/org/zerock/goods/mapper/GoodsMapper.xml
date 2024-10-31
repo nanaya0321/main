@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+  <mapper namespace="org.zerock.goods.mapper.GoodsMapper">
+  	<!-- 상품 리스트 -->
+  	<select id="list" resultType="org.zerock.goods.vo.GoodsVO">
+  		select
+	  			goods_no, goods_name, price, discount, discount_rate, sale_price, saved_rate, image_name
+  		from
+  		(
+	  		select
+	  			rownum rnum, goods_no, goods_name, price, discount, discount_rate, sale_price, saved_rate, image_name
+	  		from
+		  	(
+		  		select
+		  			g.goods_no, g.goods_name, p.price, p.discount, p.discount_rate, p.sale_price, p.saved_rate, g.image_name
+		  		from
+		  			goods g, goods_price p 
+		  		where
+		  		(
+		  			<!-- 검색조건 -->
+		  			<include refid="search"/> 
+		  			<!-- 일반조건 -->
+		  			<!-- 현재 판매되고 있는 상품 -->
+		  			<!-- CDATA를 사용한 태그는 안에 내용이 문자열로 DB서버에 전달된다. -->
+		  			<![CDATA[
+		  			sale_start_date <= sysDate and 
+		  			trunc(sysDate) <= sale_end_date
+		  			]]>
+	  			)
+	  			and
+	  			(
+		  			<!-- 조인 조건 -->
+		  			g.goods_no = p.goods_no
+	  			)
+		  	)
+  		)
+  		where rnum between #{pageObject.startRow} and #{pageObject.endRow}
+  	</select>
+  	
+  	<!-- 페이지 처리를 위한 getTotalRow -->
+  	<select id="getTotalRow" resultType="Long">
+  		select count(*)
+  		from goods g, goods_price p 
+  		where
+  		(
+  			<!-- 검색조건 -->
+  			<include refid="search"/> 			
+  			<!-- 일반조건 -->
+  			<!-- 현재 판매되고 있는 상품 -->
+  			<!-- CDATA를 사용한 태그는 안에 내용이 문자열로 DB서버에 전달된다. -->
+  			<![CDATA[
+  			sale_start_date <= sysDate and
+  			trunc(sysDate) <= sale_end_date
+  			]]>  			
+		)
+		and
+		(
+			<!-- 조인 조건 -->
+			g.goods_no = p.goods_no
+		)
+  	</select>
+  	
+  	<!-- 검색 -->
+  	<sql id="search">
+  		<trim prefixOverrides="and" suffix="and">
+	  		<!-- 카테고리 대분류, 중분류 -->
+	  		<if test="goodsSearchVO.cate_code1 != null and goodsSearchVO.cate_code1 != 0">
+	 			and cate_code1 = ${goodsSearchVO.cate_code1}
+	 			<if test="goodsSearchVO.cate_code2 != null and goodsSearchVO.cate_code2 != 0">
+	 				and cate_code2 = ${goodsSearchVO.cate_code2}
+	 			</if>	 			
+			</if> 	
+			<!-- 제품명 -->
+			<if test="goodsSearchVO.goods_name != null and goodsSearchVO.goods_name != ''.toString()">
+				and goods_name like '%' || #{goodsSearchVO.goods_name} || '%'
+			</if>
+			<!-- 최소가격 -->
+			<if test="goodsSearchVO.min_price != null and goodsSearchVO.min_price != 0">
+				<![CDATA[
+				and sale_price >= #{goodsSearchVO.min_price}
+				]]>
+			</if>
+			<!-- 최대가격 -->
+			<if test="goodsSearchVO.max_price != null and goodsSearchVO.max_price != 0">
+				<![CDATA[
+				and sale_price <= #{goodsSearchVO.max_price}
+				]]>
+			</if>
+  		</trim>
+  	</sql>
+  	<!-- 대분류/중분류 가져오기 -->
+  	<select id="getCategory" resultType="org.zerock.category.vo.CategoryVO">
+  		select
+  			cate_code1, cate_code2, cate_name
+  		from
+  			category
+  		where
+  			<!-- 대분류 조건-->
+  			<if test="cate_code1 == 0">
+  				cate_code2 = 0
+  			</if>
+  			<!-- 중분류 조건-->
+  			<if test="cate_code1 > 0">
+  				cate_code1 = #{cate_code1} and cate_code2 != 0
+  			</if>
+  	</select>
+  	
+  	<!-- 상품 상세보기 -->
+  	<select id="view" resultType="org.zerock.goods.vo.GoodsVO">
+  		select 
+  			g.goods_no, g.goods_name, g.cate_code1, g.cate_code2, g.image_name, g.content, g.company, g.product_date,
+  			c.cate_name,
+  			p.price, p.discount, p.discount_rate, p.sale_price, p.saved_rate, p.delivery_charge, p.sale_start_date, p.sale_end_date,
+  			p.goods_price_no
+  		<!-- from 뒤에 쓸 수 있는 것 : 1. table이름, 2. view이름 3. select 쿼리 -->
+  		from
+  			goods g, goods_price p, category c
+  		where
+  			<!-- 일반조건 -->
+  			(g.goods_no = #{goods_no})
+  			<![CDATA[
+  			and (
+  			sale_start_date <= sysDate and
+  			trunc(sysDate) <= sale_end_date
+  			)
+  			]]> 
+  			<!-- 조인조건 -->
+  			and (g.goods_no = p.goods_no)
+  			and (g.cate_code1 = c.cate_code1 and g.cate_code2 = c.cate_code2)
+  	</select>
+  	
+  	<!-- 상품 사이즈 리스트 -->
+  	<select id="sizeList" resultType="org.zerock.goods.vo.GoodsSizeVO">
+  		select 
+  			goods_size_no, size_name, goods_no
+  		from 
+  			goods_size
+  		where
+  			goods_no = #{goods_no}
+  	</select>
+  	<!-- 상품 컬러 리스트 -->
+  	<select id="colorList" resultType="org.zerock.goods.vo.GoodsColorVO">
+  		select 
+  			goods_color_no, color_name, goods_no
+  		from 
+  			goods_color
+  		where
+  			goods_no = #{goods_no}
+  	</select>
+  	<!-- 상품 이미지 리스트 -->
+  	<select id="imageList" resultType="org.zerock.goods.vo.GoodsImageVO">
+  		select 
+  			goods_image_no, image_name, goods_no
+  		from 
+  			goods_image
+  		where
+  			goods_no = #{goods_no}
+  	</select>
+  	
+  	<!-- 1. 상품등록 -->
+  	<!-- jdbcType = DB로 넘어가는 변수 속성 (대문자)
+  		- null 로 데이터가 넘어갈때 DB에 속성을 알려주는 프로퍼티
+  		VARCHAR: 문자열, INTEGER: 정수형, BIGINT: long 타입, DOUBLE: 실수형, DATE: 날짜, TIMESTAMP: 타임스탬프, BOOLEAN: 논리형
+  	-->
+  	<insert id="write">
+  		<!-- insert할때 primarykey를 미리 세팅할 때 사용 -->
+  		<selectKey keyProperty="goods_no" resultType="Long" order="BEFORE">
+  			select goods_seq.nextval from dual <!-- from dual: 테이블이 없는거 가져올때 사용함  -->
+  		</selectKey>
+  		insert into goods
+  			(goods_no, goods_name, cate_code1, cate_code2, image_name, content, company, product_date)
+  		values
+  			(#{goods_no}, #{goods_name}, #{cate_code1}, #{cate_code2}, #{image_name}, #{content}, #{company}, 
+  			#{product_date, jdbcType=DATE})
+  	</insert>
+
+  	<!-- 가격 정보 등록 -->
+  	<insert id="writePrice">
+  		insert into goods_price
+  			(goods_price_no, price, discount, discount_rate, sale_price, saved_rate, delivery_charge 
+  			<if test="sale_start_date != null">
+  			, sale_start_date  			
+  			</if>
+  			<if test="sale_end_date != null">
+  			, sale_end_date
+  			</if>
+  			, goods_no)
+  		values
+  			(goods_price_seq.nextval, #{price}, #{discount, jdbcType=INTEGER}, #{discount_rate, jdbcType=INTEGER}, 
+  			#{sale_price},
+  			#{saved_rate, jdbcType=INTEGER}, #{delivery_charge, jdbcType=INTEGER}
+  			<if test="sale_start_date != null">
+  			, #{sale_start_date, jdbcType=DATE}
+  			</if>
+  			<if test="sale_end_date != null">
+	  		, #{sale_end_date, jdbcType=DATE}
+  			</if>
+  			, #{goods_no})
+  	</insert>
+  	<!-- 추가 이미지 등록 -->
+  	<insert id="writeImage">
+  		insert into goods_image
+  			(goods_image_no, image_name, goods_no)
+  		values
+  			(goods_image_seq.nextval, #{image_name}, #{goods_no})
+  	</insert>
+  	<insert id="writeSize">
+  		insert into goods_size
+  			(goods_size_no, size_name, goods_no)
+  		values
+  			(goods_size_seq.nextval, #{size_name}, #{goods_no})
+  	</insert>
+  	<!-- GoodsColorVO의 리스트를 받아서 한번에 처리 -->
+  	<insert id="writeColor">
+  		insert into goods_color
+  			(goods_color_no, color_name, goods_no)
+  		select goods_color_seq.nextval, color_name, goods_no from
+  		(
+  		<foreach collection="list" item="vo" separator=" union all ">
+  			select #{vo.color_name} color_name, #{vo.goods_no} goods_no from dual
+  		</foreach>
+  		)
+  	</insert>
+  	
+  	<!-- 상품 정보 수정 -->
+  	<update id="update">
+  		update goods set 
+  			cate_code1 = #{cate_code1}, cate_code2 = #{cate_code2},
+  			goods_name = #{goods_name}, company= #{company},
+  			content = #{content}, product_date = #{product_date}
+  		where
+  			goods_no = #{goods_no}
+  	</update>
+  	<!-- 상품 가격 수정 -->
+  	<update id="updatePrice">
+  		update goods_price set
+  			price = #{price}, discount = #{discount}, discount_rate = #{discount_rate}, sale_price = #{sale_price},
+  			saved_rate = #{saved_rate}, delivery_charge = #{delivery_charge}, sale_start_date = #{sale_start_date},
+  			sale_end_date = #{sale_end_date}
+  		where
+  			goods_no = #{goods_no} and goods_price_no = #{goods_price_no}
+  	</update>
+  	
+  	<!-- 상품 사이즈 삭제 -->
+  	<delete id="deleteSize">
+  		delete from 
+  			goods_size
+  		where
+  			goods_no = #{goods_no}
+  		
+  	</delete>
+	<!-- 상품 컬러 삭제 -->
+	<delete id="deleteColor">
+		delete from 
+  			goods_color
+  		where
+  			goods_no = #{goods_no}
+	</delete>
+	<!-- 상품 추가 이미지 삭제 -->
+	<delete id="deleteImage">
+		delete from 
+  			goods_image
+  		where
+  			image_name = #{image_name}
+	</delete>
+  </mapper>
